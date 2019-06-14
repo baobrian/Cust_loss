@@ -59,9 +59,9 @@ VALIDATE_SQL = """
 # 文件保存路径
 
 
-RESULT_SAVE_PATH = "/home/azkaban/model_persistence/result/"
+RESULT_SAVE_PATH = "/home/azkaban/custloss_model/result/"
 
-MODEL_PATH = "/home/azkaban/model_persistence/model_warehouse/"
+MODEL_PATH = "/home/azkaban/custloss_model/model_warehouse/"
 
-VALIDATE_SAVE_PATH = "/home/azkaban/model_persistence/validation/"
+VALIDATE_SAVE_PATH = "/home/azkaban/custloss_model/validation/"
 
