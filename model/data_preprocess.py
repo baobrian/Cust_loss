@@ -39,6 +39,11 @@ class DataPreprocess:
                 numerical_df[element]=temp.map(lambda x : 0 if x==-1 else x)
             TRAIN[numerical_names] = numerical_df
 
+        if replace_type=='mean':
+            imputer = preprocessing.Imputer(missing_values="NaN",
+                                                     strategy=replace_type, axis=0)
+            TRAIN[numerical_names] = imputer.fit_transform(TRAIN[numerical_names])
+
         if TEST is not None:
             numerical_df_test = TEST.select_dtypes(exclude=["object"])
             numerical_names_test=numerical_df_test.columns
