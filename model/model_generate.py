@@ -42,14 +42,14 @@ def getdata(sql):
     print (' 获取数据集结束')
     return df
 
-def getsql(stratege):
-    print ('输入参数为：%s') % stratege
-    if stratege=='classify':
-        train_sql = data_config.CLASSIFY_TRAIN_SQL        # 训练集取数sql
-        predict_sql = data_config.CLASSIFY_PREDICT_SQL    # 预测集取数sql
-    if stratege=='regression':
-        train_sql = data_config.REGRESSION_TRAIN_SQL      # 训练集取数sql
-        predict_sql = data_config.REGRESSION_PREDICT_SQL  # 预测集取数sql
+def getsql(param):
+    print ('输入参数为：%s') % param
+    if param=='DrawAppl':
+        train_sql = data_config.DRAWAPPL_CLASSIFY_TRAIN_SQL        # 训练集取数sql
+        predict_sql = data_config.DRAWAPPL_CLASSIFY_PREDICT_SQL    # 预测集取数sql
+    if param=='ReDrawAppl':
+        train_sql = data_config.REDRAWAPPL_CLASSIFY_TRAIN_SQL      # 训练集取数sql
+        predict_sql = data_config.REDRAWAPPL_CLASSIFY_PREDICT_SQL  # 预测集取数sql
     return train_sql,predict_sql
 
 def bin_data(df,pk,g):
@@ -63,32 +63,32 @@ def bin_data(df,pk,g):
     reslut = pd.merge(df,temp, on=pk)
     return reslut
 
-def main_train(stratege,train_df,machine='rf'):
-    targets_dict={'classify':'cust_cate','regression':'over_6_rate'}
+def main_train(stratege,train_df,type,machine='xg'):
+    targets_dict={'DrawAppl':'is_appl','ReDrawAppl':'is_reappl'}
     print ('Step2 :  开始数据集预处理......')
     datapreprocess=dap.DataPreprocess()
-    train_df=datapreprocess.num_replace_null(TRAIN=train_df,replace_type='nan')
+    train_df = datapreprocess.num_replace_null(TRAIN=train_df, replace_type='mean')
     train_df=datapreprocess.replace_na(TRAIN=train_df)
     train_df,map_dict = datapreprocess.transform_categorical_alphabetically(TRAIN=train_df)
     print ('数据集预处理完成')
-    model_config = mcf.ModelConfig(stratege=stratege)
+    model_config = mcf.ModelConfig(stratege=type)
     model_config.load_mapdict(mapdict=map_dict)
     print ('Step3 :  开始模型训练......')
-    model=mto.model_train(Train_data=train_df,Target=targets_dict[stratege], Stratege=stratege,machine=machine)
+    model = mto.model_train(Train_data=train_df, Target=targets_dict[type], Stratege=stratege, machine=machine)
     model_config.model_persistence(model=model)
     print('  模型文件生成')
 
-def main_predict(predict_df,stratege,path=None):
+def main_predict(predict_df,stratege,type,path=None):
     pk_dict=data_config.PK_DICT
     # 预测集数据标识
-    pk = pk_dict[stratege]
+    pk = pk_dict[type]
     predict_temp = predict_df[pk]
     predict_df = predict_df.drop(pk, axis=1)
     print ('Step2 :  开始数据集预处理......')
     datapreprocess=dap.DataPreprocess()
-    predict_df=datapreprocess.num_replace_null(TRAIN=predict_df,replace_type='nan')
+    predict_df=datapreprocess.num_replace_null(TRAIN=predict_df,replace_type='mean')
     predict_df=datapreprocess.replace_na(TRAIN=predict_df)
-    model_config = mcf.ModelConfig(stratege=stratege)
+    model_config = mcf.ModelConfig(stratege=type)
     mapdict=model_config.mapdict_read(path=path)
     predict_df=convert_df(data=predict_df,dict_map=mapdict)
     if np.any(predict_df.isnull()):
@@ -97,12 +97,12 @@ def main_predict(predict_df,stratege,path=None):
     predict_result=mto.model_deploy(model=model,data=predict_df,Stratege=stratege)
     print (' 预测结束')
     result = pd.concat([predict_temp, predict_result], axis=1)
-    result.sort_values(by='predict_bad_prob',inplace=True,ascending=False)
-    result['rank']=np.arange(1,len(result)+1)
-    result=bin_data(df=result,pk='rank',g=10)
+    result.sort_values(by='is_appl',inplace=True,ascending=False)
+    # result['rank']=np.arange(1,len(result)+1)
+    # result=bin_data(df=result,pk='rank',g=10)
     mkdir_data()
-    result.to_csv('Collection_' + stratege + '_result_' +getNowTime()+ '.csv', index=False,header=False)
-    print (' 催收文件已生成!')
+    result.to_csv('Custloss_' + type + '_result_' +getNowTime()+ '.csv', index=False,header=False)
+    print (' 预测文件已生成!')
 
 if __name__ == '__main__':
 
@@ -111,8 +111,9 @@ if __name__ == '__main__':
         raise ValueError
     stratege=argv[1]
     flow_type=argv[2]
-    if len(argv)==4:
-        path=argv[3]
+    model_type=argv[3]
+    if len(argv)==5:
+        path=argv[4]
     # 如果路径为空，则默认设置预测使用的模型为当月训练的模型
     else:path=data_config.MODEL_PATH+'model'+getNowTime_YMD()
 	
@@ -126,22 +127,22 @@ if __name__ == '__main__':
             train_sql,predict_sql=getsql(stratege=stra)
             train_df = getdata(sql=train_sql)
             # predict_df=getdata(sql=predict_sql)
-            main_train(train_df=train_df,stratege=stra)
+            main_train(train_df=train_df,stratege=stra,type='Draw')
         sys.exit()
 
     if flow_type=='train' and stratege in ['classify','regression']:
-        train_sql,predict_sql=getsql(stratege=stratege)
+        train_sql,predict_sql=getsql(stratege=model_type)
         train_df=getdata(sql=train_sql)
-        main_train(stratege=stratege,train_df=train_df)
+        main_train(stratege=stratege, train_df=train_df, type=model_type)
         sys.exit()
 
     if not os.path.exists(path):
         print '输入的路径：%s不存在'%path
         raise ValueError
     if os.path.exists(path) and flow_type=='predict' and stratege in ['classify','regression']:
-        train_sql, predict_sql = getsql(stratege=stratege)
+        train_sql, predict_sql = getsql(stratege=model_type)
         predict_df=getdata(sql=predict_sql)
-        main_predict(predict_df=predict_df, stratege=stratege,path=path)    
+        main_predict(predict_df=predict_df, stratege=stratege, path=path, type=model_type)
         print 'Over'
         sys.exit()
     else:

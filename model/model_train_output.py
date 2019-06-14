@@ -32,7 +32,7 @@ def model_train(Train_data,Target,Stratege=None,machine=None):
             print 'RF AUC is %s' % roc_auc_score(y_true=Y_test, y_score=y_rf_score[:, 1])
             return rtf
         if machine=='xg':
-            xg=XGBClassifier(max_depth=5,learning_rate=0.22,n_estimators=200)
+            xg=XGBClassifier(max_depth=10,learning_rate=0.22,n_estimators=200)
             xg.fit(X_train,Y_train)
             print 'accuracy is %s' % (xg.score(X=X_test, y=Y_test))
             y_xg_score=xg.predict_proba(X_test)
@@ -56,8 +56,8 @@ def model_deploy(model,data,Stratege):
         raise ValueError
     if Stratege=='classify':
         prob=model.predict_proba(data)
-        prob_df=pd.DataFrame.from_records(data=prob,index=data.index,columns=['predict_bad_prob','good_prob'])
-        return prob_df['predict_bad_prob']
+        prob_df=pd.DataFrame.from_records(data=prob,index=data.index,columns=['not_appl','is_appl'])
+        return prob_df
     if Stratege == 'regression':
         pre = model.predict(data)
     predict_df = pd.DataFrame(data=pre, index=data.index, columns=['predict_bad_prob'])
