@@ -7,451 +7,269 @@ PORT = 21050
 USER = "taskctl"
 # ******************************************
 
-PK_DICT = {'classify': ['id_no', 'ps_due_dt', 'loan_no', 'if_over_0_6'],
-           'regression': ['id_no', 'ps_due_dt', 'loan_no']}
+PK_DICT = {'DrawAppl': ['id_no', 'limit_actv_tm'],
+           'ReDrawAppl': ['id_no', 'first_tx_distr_dt']}
 
-# 取数sql，分为分类和回归
+# 取数sql，分为首次提款（DRAWAPPL）和复提款申请(REDRAWAPPL)
 
 # ************************************
 
 # 分类取数
 
 # 训练集取数sql
-CLASSIFY_TRAIN_SQL = """
-select 
-cast (cust_union.age as int) as 'age',
-cast (cust_union.sex as string) as 'sex',
-cast (cust_union.city_level as string) as 'city_level',
-cast (cust_union.marry_sate as string) as 'marry_sate',
-cast (cust_union.phone_city_level as string) as 'phone_city_level',
-cast (cust_union.id_config as string) as 'id_config',
-cast (cust_outdata.INDTRY_SAL_CD as string)as 'INDTRY_SAL_CD',
-cast (cust_outdata.unicon as string) as 'unicon',
-cast (cust_outdata.unover_card_acct_count as int) as 'unover_card_acct_count',
-cast (cast (cust_outdata.unover_card_credit_limit as decimal(18,2)) as float) as 'unover_card_credit_limit',
-cast (cast (cust_outdata.unover_card_latest_6month_usedavg_amount as decimal(18,2)) as float) as 'unover_card_latest_6month_usedavg_amount',
-cast (cast (cust_outdata.card_used_highest_amount as decimal(18,2)) as float) as 'card_used_highest_amount',
-cast (cust_outdata.card_over_count as int) 'card_over_count',
-cast (cust_outdata.unover_loan_acct_count as int)  as 'unover_loan_acct_count',
-cast (cast (cust_outdata.unover_loan_credit_limit as decimal(18,2)) as float) as 'unover_loan_credit_limit',
-cast (cast (cust_outdata.unover_loan_balance as decimal(18,2)) as float) as 'unover_loan_balance',
-cast (cast (cust_outdata.unover_loan_latest_6month_usedavg_amount as decimal(18,2)) as float) as 'unover_loan_latest_6month_usedavg_amount',
-cast (cust_outdata.loan_PBC_GL_count as int) as 'loan_PBC_GL_count',
-cast (cast (cust_outdata.loan_CREDITLIMITAMOUNT_amount as decimal(18,2)) as float) as 'loan_CREDITLIMITAMOUNT_amount',
-cast (cust_outdata.house_loan_count+cust_outdata.housing_loan_count as int) as 'house_loan',
-cast (cust_outdata.loan_over_count as int) as 'loan_over_count',
-cast (case when cust_outdata.loan_class5state_sunshi>=0 or cust_outdata.loan_class5state_guanzhu>=0 or cust_outdata.loan_class5state_ciji>=0 or cust_outdata.loan_class5stat_keyi>=0
-then cust_outdata.loan_class5state_sunshi+cust_outdata.loan_class5state_guanzhu+cust_outdata.loan_class5state_ciji+cust_outdata.loan_class5stat_keyi 
-else 0 end as int)  as 'loan_class5state',
-cast (cust_outdata.td_SCORE as int) as 'td_SCORE',
-cast (cust_outdata.td_count as int) 'td_count',
-cast (cust_outdata.cnss_amount as int) as 'cnss_amount',
-cast (cust_outdata.p2p_amount as int) as 'p2p_amount',
-cast (cast (cust_cmis.total_apprv_amt as decimal(18,2)) as float) as 'total_apprv_amt',
-cast (cast (cust_cmis.loan_first_dn_amt as decimal(18,2)) as float) as 'loan_first_dn_amt',
-cast (cast (cust_cmis.loan_first_dn_amt/total_apprv_amt as decimal(18,2)) as float) as 'first_loan_rate',
-cast (cust_cmis.loan_rate as float) as 'loan_rate',
-cast (cust_cmis.first_pb_count as int) as 'first_pb_count',
-cast (lable_uk_activity.is_gain_prize as string) as 'is_gain_prize',
-cast (lable_uk_activity.seris_signin_time as int) as 'seris_signin_time',
-cast (lable_uk_activity.total_signin_daynum as int) as 'total_signin_daynum',
-cast (cust_uk.used_time  as string) as  'used_time',
-cast (cust_uk.launch_pre_day as float) as 'launch_pre_day',
-cast (cast(cust_uk.p2p_ap_count/cust_uk.application_count as decimal(18,2)) as float) as "application_count",
-cast (cast(cust_uk.finance_count/cust_uk.message_count as decimal(18,2)) as float) as "message_count",
-cast (isnull(cast(cast(isnull(cust_cmis.pre1_pary_count,0) as int )/cast(isnull(cust_cmis.daoqi_tnr, 0) as int ) as decimal(18,2) ),0) as float) as 'pre_loan_rate',
-cast (case when t_loan_over.cnt=0 then 1 else 0 end as int ) as "cust_cate"
-from (
-select B.id_no as id_no
-           from shdata.sh002_lm_loan B 
-           inner join
-           shdata.sh001_LPB_APPL_DN C 
-           on B.loan_no=C.loan_no
-           where B.LOAN_TYP = 'X201701268' group by B.id_no
-) t_main
-inner  join 
-(
-select 
-t1.id_no as id_no
-,sum(case when t2.loan_no is not null then 1 else 0 end) cnt
-from shdata.sh002_lm_loan t1 
-left join shdata.sh002_lm_pm_shd t2
-  on t1.loan_no = t2.loan_no
- and t2.ps_od_ind = '1'
- and (case when t2.last_setl_dt is not null and t2.setl_ind='Y' then datediff(cast(t2.last_setl_dt as string),cast(t2.ps_due_dt as string)) 
-      else datediff(to_date(date_add(from_unixtime(unix_timestamp(),"yyyy-MM-dd"),-1)),cast(t2.ps_due_dt as string)) end )>6
- group by t1.id_no
-)t_loan_over  on t_loan_over.id_no=t_main.id_no 
-
-inner join  cust_label.label_cust_union as cust_union on cust_union.id_no=t_main.id_no
-left join  cust_label.label_cust_cmis as cust_cmis on cust_cmis.id_no=t_main.id_no 
-left join  cust_label.label_cust_outdata as cust_outdata on cust_outdata.cust=t_main.id_no
-left join  cust_label.label_cust_uk as cust_uk on cust_uk.id_no=t_main.id_no
-left join  cust_label.label_uk_activity as lable_uk_activity on lable_uk_activity.id_no=t_main.id_no
-where cust_cmis.daoqi_tnr>=6
-
+DRAWAPPL_CLASSIFY_TRAIN_SQL = """
+select
+ cast (tt.age as int) as  age
+,cast (tt.gender as int) as  gender
+,cast (tt.crdt_sum_lim as int) as crdt_sum_lim
+,cast (tt.reg_tname_intrv as int) as reg_tname_intrv
+,cast (tt.tname_apply_intrv as int) as tname_apply_intrv
+,cast (tt.pass_limit_intrv as int) as pass_limit_intrv
+,cast (tt.reg_apply_intrv as int) as reg_apply_intrv
+,cast (tt.is_appl as int) as is_appl
+,cast (tt.market_channel as string) as market_channel
+,cast (tt.limit_appl_cnt as int) as limit_appl_cnt
+,cast (tt.app_down_src as string) as app_down_src
+,cast (tt.first_loan_card_open_month as int) as first_loan_card_open_month
+,cast (tt.first_loan_open_month as int) as first_loan_open_month
+,cast (tt.p2p_ap_rate as float) as p2p_ap_rate
+,cast (tt.finance_count_in_mes_rate as float) as finance_count_in_mes_rate
+,cast (tt.ave_app_time as float) as ave_app_time
+,cast (tt.loan_acct_sts_zhengchang as int) as loan_acct_sts_zhengchang
+,cast (tt.loan_acct_sts_jieqing as int) as loan_acct_sts_jieqing
+,cast (tt.loan_type_xiaofei as int) as loan_type_xiaofei
+,cast (tt.maprice_rate as float) as maprice_rate
+,cast (tt.p2p_amount as int) as p2p_amount
+,cast (tt.ever_indtry_sal_cd as string) as ever_indtry_sal_cd
+,cast (tt.query_amtm6 as int) as query_amtm6
+,cast (tt.amount as int) as amount
+,cast (tt.td_count as int) as td_count
+,cast (tt.td_score as int) as td_score
+,cast (tt.unover_card_credit_limit as float) as unover_card_credit_limit
+,cast (tt.unover_card_used_credit_limit as float) as unover_card_used_credit_limit
+,cast (tt.loan_creditlimitamount_amount as float) as loan_creditlimitamount_amount
+,cast (tt.unover_card_latest_6month_usedavg_amount as float) as unover_card_latest_6month_usedavg_amount
+,cast (tt.unover_loan_credit_limit as float) as unover_loan_credit_limit
+,cast (tt.unover_loan_balance as float) as unover_loan_balance
+,cast (tt.ACTV_LMT_BACK_IND_START_UP_APP as int) as ACTV_LMT_BACK_IND_START_UP_APP
+,cast (tt.LMT_ACTV_BACK_FIRST_TM_START_UP_APP_TM_INTRV as int) as LMT_ACTV_BACK_FIRST_TM_START_UP_APP_TM_INTRV
+,cast (tt.CHECK_MONTHLY_RY_1week as int) as CHECK_MONTHLY_RY_1week
+,cast (tt.DEBIT_ONE_DETL_PAGE_CNT_1week as int) as DEBIT_ONE_DETL_PAGE_CNT_1week
+,cast (tt.DEBIT_ONE_PAGE_CNT_1week as int) as DEBIT_ONE_PAGE_CNT_1week
+,cast (tt.INDIV_LOAN_CONT_CNT_1week as int) as INDIV_LOAN_CONT_CNT_1week
+,cast (tt.CHECK_MONTHLY_RY_1moon as int) as CHECK_MONTHLY_RY_1moon
+,cast (tt.DEBIT_ONE_DETL_PAGE_CNT_1moon as int) as DEBIT_ONE_DETL_PAGE_CNT_1moon
+,cast (tt.DEBIT_ONE_PAGE_CNT_1moon as int) as DEBIT_ONE_PAGE_CNT_1moon
+,cast (tt.INDIV_LOAN_CONT_CNT_1moon as int) as INDIV_LOAN_CONT_CNT_1moon
+from
+(select 
+ t1.age
+,t1.gender
+,t1.crdt_sum_lim
+,cast(t1.limit_actv_tm as string) as limit_actv_tm
+,datediff(cast(t1.tname_tm as string ),cast(t1.app_down_tm as string )) as reg_tname_intrv
+,datediff(cast(t1.first_tm_limit_appl_dt as string ),cast(t1.tname_tm as string)) as tname_apply_intrv
+,datediff(cast(t1.limit_actv_tm as string ),cast(t1.first_tm_limit_appl_dt as string)) as pass_limit_intrv
+,datediff(cast(t1.first_tm_limit_appl_dt as string ),cast(t1.app_down_tm as string)) as reg_apply_intrv
+,case when t1.first_tm_draw_appl_dt is not null then datediff(cast(t1.first_tm_draw_appl_dt as string),cast(t1.limit_actv_tm as string ))
+      when t1.first_tm_draw_appl_dt is null then -1
+      end  as draw_intrv
+      
+,case when (case when t1.first_tm_draw_appl_dt is not null then datediff(cast(t1.first_tm_draw_appl_dt as string),cast(t1.limit_actv_tm as string ))
+      when t1.first_tm_draw_appl_dt is null then -1
+      end ) >=0 
+      and  (case when t1.first_tm_draw_appl_dt is not null then datediff(cast(t1.first_tm_draw_appl_dt as string),cast(t1.limit_actv_tm as string ))
+      when t1.first_tm_draw_appl_dt is null then -1
+      end ) <=3 then 1 
+      else 0 end  as is_appl
+,t1.market_channel
+,t1.limit_appl_cnt
+,t1.app_down_src
+,uk_label.first_loan_card_open_month
+,uk_label.first_loan_open_month
+,uk_label.p2p_ap_rate
+,uk_label.finance_count_in_mes_rate
+,uk_label.ave_app_time
+,uk_label.loan_acct_sts_zhengchang
+,uk_label.loan_acct_sts_jieqing
+,uk_label.loan_type_xiaofei
+,t5.maprice_rate
+,lpbc.p2p_amount
+,lpbc.ever_indtry_sal_cd
+,lpbc.query_amtm6
+,lpbc.amount
+,lpbc.td_count
+,lpbc.td_score
+,lpbc.unover_card_credit_limit
+,lpbc.unover_card_used_credit_limit
+,lpbc.loan_creditlimitamount_amount
+,lpbc.unover_card_latest_6month_usedavg_amount
+,lpbc.unover_loan_credit_limit
+,lpbc.unover_loan_balance
+,uk_bp.ACTV_LMT_BACK_IND_START_UP_APP
+,uk_bp.LMT_ACTV_BACK_FIRST_TM_START_UP_APP_TM_INTRV
+,uk_bp.CHECK_MONTHLY_RY_1week
+,uk_bp.DEBIT_ONE_DETL_PAGE_CNT_1week
+,uk_bp.DEBIT_ONE_PAGE_CNT_1week
+,uk_bp.INDIV_LOAN_CONT_CNT_1week
+,uk_bp.CHECK_MONTHLY_RY_1moon
+,uk_bp.DEBIT_ONE_DETL_PAGE_CNT_1moon
+,uk_bp.DEBIT_ONE_PAGE_CNT_1moon
+,uk_bp.INDIV_LOAN_CONT_CNT_1moon
+from
+(select * from dm_uc.uc01_user_base_info t_base where stat_dt='2019-05-09' and t_base.limit_actv_tm  is not null ) t1 
+inner join  dm_uc.uc11_user_base_label  uc_base_label on t1.user_id=uc_base_label.user_id and uc_base_label.stat_dt='2019-05-09' and uc_base_label.is_white_list='0'
+left join   cust_label.u_k_cust_label_01 uk_label on t1.user_id=uk_label.user_id and  uk_label.stat_dt='2019-05-09' 
+left join 
+(select t4.id_no,t4.cont_amt,t4.maprice_rate from  
+    (SELECT id_no,maprice_rate,cont_amt ,row_number() over(partition by id_no  order by  cont_begin_dt  desc) as num 
+        FROM pdata.p02_loan_cont_info
+         WHERE stat_dt='2019-05-09' AND cont_sts='200' AND loan_typ='X201701268'and loan_prom is null) t4 
+         where t4.num=1 ) t5
+  on t1.id_no=t5.id_no
+left join   cust_label.label_cust_outdata   lpbc  on t1.id_no=lpbc.cust
+left join cust_label.uk_bp_label_01 as uk_bp on t1.user_id=uk_bp.user_id  )tt
+where  tt.draw_intrv>=-1  
+and    tt.limit_actv_tm>=date_add( from_unixtime(unix_timestamp(),"yyyy-MM-dd"),-270)
 
 """
 
 # 预测集取数sql
-CLASSIFY_PREDICT_SQL = """
+DRAWAPPL_CLASSIFY_PREDICT_SQL = """
 
-select 
-cast (cust_union.id_no as string)  as 'id_no',
-cast (t_main.PS_DUE_DT as string)  as'PS_DUE_DT',
-cast (t_main.LOAN_NO as string) as 'LOAN_NO',
-cast (isnull(t_loan_over_0_6.over_0_6,0) as int)  as 'if_over_0_6',
-cast (cust_union.age as int) as 'age',
-cast (cust_union.sex as string) as 'sex',
-cast (cust_union.city_level as string) as 'city_level',
-cast (cust_union.marry_sate as string) as 'marry_sate',
-cast (cust_union.phone_city_level as string) as 'phone_city_level',
-cast (cust_union.id_config as string) as 'id_config',
-cast (cust_outdata.INDTRY_SAL_CD as string)as 'INDTRY_SAL_CD',
-cast (cust_outdata.unicon as string) as 'unicon',
-cast (cust_outdata.unover_card_acct_count as int) as 'unover_card_acct_count',
-cast (cast (cust_outdata.unover_card_credit_limit as decimal(18,2)) as float) as 'unover_card_credit_limit',
-cast (cast (cust_outdata.unover_card_latest_6month_usedavg_amount as decimal(18,2)) as float) as 'unover_card_latest_6month_usedavg_amount',
-cast (cast (cust_outdata.card_used_highest_amount as decimal(18,2)) as float) as 'card_used_highest_amount',
-cast (cust_outdata.card_over_count as int) 'card_over_count',
-cast (cust_outdata.unover_loan_acct_count as int)  as 'unover_loan_acct_count',
-cast (cast (cust_outdata.unover_loan_credit_limit as decimal(18,2)) as float) as 'unover_loan_credit_limit',
-cast (cast (cust_outdata.unover_loan_balance as decimal(18,2)) as float) as 'unover_loan_balance',
-cast (cast (cust_outdata.unover_loan_latest_6month_usedavg_amount as decimal(18,2)) as float) as 'unover_loan_latest_6month_usedavg_amount',
-cast (cust_outdata.loan_PBC_GL_count as int) as 'loan_PBC_GL_count',
-cast (cast (cust_outdata.loan_CREDITLIMITAMOUNT_amount as decimal(18,2)) as float) as 'loan_CREDITLIMITAMOUNT_amount',
-cast (cust_outdata.house_loan_count+cust_outdata.housing_loan_count as int) as 'house_loan',
-cast (cust_outdata.loan_over_count as int) as 'loan_over_count',
-cast (case when cust_outdata.loan_class5state_sunshi>=0 or cust_outdata.loan_class5state_guanzhu>=0 or cust_outdata.loan_class5state_ciji>=0 or cust_outdata.loan_class5stat_keyi>=0
-then cust_outdata.loan_class5state_sunshi+cust_outdata.loan_class5state_guanzhu+cust_outdata.loan_class5state_ciji+cust_outdata.loan_class5stat_keyi 
-else 0 end as int)  as 'loan_class5state',
-cast (cust_outdata.td_SCORE as int) as 'td_SCORE',
-cast (cust_outdata.td_count as int) 'td_count',
-cast (cust_outdata.cnss_amount as int) as 'cnss_amount',
-cast (cust_outdata.p2p_amount as int) as 'p2p_amount',
-cast (cast (cust_cmis.total_apprv_amt as decimal(18,2)) as float) as 'total_apprv_amt',
-cast (cast (cust_cmis.loan_first_dn_amt as decimal(18,2)) as float) as 'loan_first_dn_amt',
-cast (cast (cust_cmis.loan_first_dn_amt/total_apprv_amt as decimal(18,2)) as float) as 'first_loan_rate',
-cast (cust_cmis.loan_rate as float) as 'loan_rate',
-cast (cust_cmis.first_pb_count as int) as 'first_pb_count',
-cast (lable_uk_activity.is_gain_prize as string) as 'is_gain_prize',
-cast (lable_uk_activity.seris_signin_time as int) as 'seris_signin_time',
-cast (lable_uk_activity.total_signin_daynum as int) as 'total_signin_daynum',
-cast (cust_uk.used_time  as string) as  'used_time',
-cast (cust_uk.launch_pre_day as float) as 'launch_pre_day',
-cast (cast(cust_uk.p2p_ap_count/cust_uk.application_count as decimal(18,2)) as float) as "application_count",
-cast (cast(cust_uk.finance_count/cust_uk.message_count as decimal(18,2)) as float) as "message_count",
-cast (isnull(cast(cast(isnull(cust_cmis.pre1_pary_count,0) as int )/cast(isnull(cust_cmis.daoqi_tnr, 0) as int ) as decimal(18,2) ),0) as float) as 'pre_loan_rate'
+select
+ cast (tt.id_no as string) as id_no
+,cast (tt.limit_actv_tm as string) as limit_actv_tm
+,cast (tt.age as int) as  age
+,cast (tt.gender as int) as  gender
+,cast (tt.crdt_sum_lim as int) as crdt_sum_lim
+,cast (tt.reg_tname_intrv as int) as reg_tname_intrv
+,cast (tt.tname_apply_intrv as int) as tname_apply_intrv
+,cast (tt.pass_limit_intrv as int) as pass_limit_intrv
+,cast (tt.reg_apply_intrv as int) as reg_apply_intrv
+,cast (tt.market_channel as string) as market_channel
+,cast (tt.limit_appl_cnt as int) as limit_appl_cnt
+,cast (tt.app_down_src as string) as app_down_src
+,cast (tt.first_loan_card_open_month as int) as first_loan_card_open_month
+,cast (tt.first_loan_open_month as int) as first_loan_open_month
+,cast (tt.p2p_ap_rate as float) as p2p_ap_rate
+,cast (tt.finance_count_in_mes_rate as float) as finance_count_in_mes_rate
+,cast (tt.ave_app_time as float) as ave_app_time
+,cast (tt.loan_acct_sts_zhengchang as int) as loan_acct_sts_zhengchang
+,cast (tt.loan_acct_sts_jieqing as int) as loan_acct_sts_jieqing
+,cast (tt.loan_type_xiaofei as int) as loan_type_xiaofei
+,cast (tt.maprice_rate as float) as maprice_rate
+,cast (tt.p2p_amount as int) as p2p_amount
+,cast (tt.ever_indtry_sal_cd as string) as ever_indtry_sal_cd
+,cast (tt.query_amtm6 as int) as query_amtm6
+,cast (tt.amount as int) as amount
+,cast (tt.td_count as int) as td_count
+,cast (tt.td_score as int) as td_score
+,cast (tt.unover_card_credit_limit as float) as unover_card_credit_limit
+,cast (tt.unover_card_used_credit_limit as float) as unover_card_used_credit_limit
+,cast (tt.loan_creditlimitamount_amount as float) as loan_creditlimitamount_amount
+,cast (tt.unover_card_latest_6month_usedavg_amount as float) as unover_card_latest_6month_usedavg_amount
+,cast (tt.unover_loan_credit_limit as float) as unover_loan_credit_limit
+,cast (tt.unover_loan_balance as float) as unover_loan_balance
+,cast (tt.ACTV_LMT_BACK_IND_START_UP_APP as int) as ACTV_LMT_BACK_IND_START_UP_APP
+,cast (tt.LMT_ACTV_BACK_FIRST_TM_START_UP_APP_TM_INTRV as int) as LMT_ACTV_BACK_FIRST_TM_START_UP_APP_TM_INTRV
+,cast (tt.CHECK_MONTHLY_RY_1week as int) as CHECK_MONTHLY_RY_1week
+,cast (tt.DEBIT_ONE_DETL_PAGE_CNT_1week as int) as DEBIT_ONE_DETL_PAGE_CNT_1week
+,cast (tt.DEBIT_ONE_PAGE_CNT_1week as int) as DEBIT_ONE_PAGE_CNT_1week
+,cast (tt.INDIV_LOAN_CONT_CNT_1week as int) as INDIV_LOAN_CONT_CNT_1week
+,cast (tt.CHECK_MONTHLY_RY_1moon as int) as CHECK_MONTHLY_RY_1moon
+,cast (tt.DEBIT_ONE_DETL_PAGE_CNT_1moon as int) as DEBIT_ONE_DETL_PAGE_CNT_1moon
+,cast (tt.DEBIT_ONE_PAGE_CNT_1moon as int) as DEBIT_ONE_PAGE_CNT_1moon
+,cast (tt.INDIV_LOAN_CONT_CNT_1moon as int) as INDIV_LOAN_CONT_CNT_1moon
+from
+(select 
+ t1.id_no
+,t1.age
+,t1.gender
+,t1.crdt_sum_lim
+,cast(t1.limit_actv_tm as string) as limit_actv_tm
+,datediff(cast(t1.tname_tm as string ),cast(t1.app_down_tm as string )) as reg_tname_intrv
+,datediff(cast(t1.first_tm_limit_appl_dt as string ),cast(t1.tname_tm as string)) as tname_apply_intrv
+,datediff(cast(t1.limit_actv_tm as string ),cast(t1.first_tm_limit_appl_dt as string)) as pass_limit_intrv
+,datediff(cast(t1.first_tm_limit_appl_dt as string ),cast(t1.app_down_tm as string)) as reg_apply_intrv
+,case when t1.first_tm_draw_appl_dt is not null then datediff(cast(t1.first_tm_draw_appl_dt as string),cast(t1.limit_actv_tm as string ))
+      when t1.first_tm_draw_appl_dt is null then -1
+      end  as draw_intrv
+      
+,case when (case when t1.first_tm_draw_appl_dt is not null then datediff(cast(t1.first_tm_draw_appl_dt as string),cast(t1.limit_actv_tm as string ))
+      when t1.first_tm_draw_appl_dt is null then -1
+      end ) >=0 
+      and  (case when t1.first_tm_draw_appl_dt is not null then datediff(cast(t1.first_tm_draw_appl_dt as string),cast(t1.limit_actv_tm as string ))
+      when t1.first_tm_draw_appl_dt is null then -1
+      end ) <=3 then 1 
+      else 0 end  as is_appl
+      
+      
+      
+,t1.market_channel
+,t1.limit_appl_cnt
+,t1.app_down_src
+,uk_label.first_loan_card_open_month
+,uk_label.first_loan_open_month
+,uk_label.p2p_ap_rate
+,uk_label.finance_count_in_mes_rate
+,uk_label.ave_app_time
+,uk_label.loan_acct_sts_zhengchang
+,uk_label.loan_acct_sts_jieqing
+,uk_label.loan_type_xiaofei
+,t5.maprice_rate
+,lpbc.p2p_amount
+,lpbc.ever_indtry_sal_cd
+,lpbc.query_amtm6
+,lpbc.amount
+,lpbc.td_count
+,lpbc.td_score
+,lpbc.unover_card_credit_limit
+,lpbc.unover_card_used_credit_limit
+,lpbc.loan_creditlimitamount_amount
+,lpbc.unover_card_latest_6month_usedavg_amount
+,lpbc.unover_loan_credit_limit
+,lpbc.unover_loan_balance
+,uk_bp.ACTV_LMT_BACK_IND_START_UP_APP
+,uk_bp.LMT_ACTV_BACK_FIRST_TM_START_UP_APP_TM_INTRV
+,uk_bp.CHECK_MONTHLY_RY_1week
+,uk_bp.DEBIT_ONE_DETL_PAGE_CNT_1week
+,uk_bp.DEBIT_ONE_PAGE_CNT_1week
+,uk_bp.INDIV_LOAN_CONT_CNT_1week
+,uk_bp.CHECK_MONTHLY_RY_1moon
+,uk_bp.DEBIT_ONE_DETL_PAGE_CNT_1moon
+,uk_bp.DEBIT_ONE_PAGE_CNT_1moon
+,uk_bp.INDIV_LOAN_CONT_CNT_1moon
+from
+(select * from dm_uc.uc01_user_base_info t_base where cast(stat_dt as string)= date_add( from_unixtime(unix_timestamp(),"yyyy-MM-dd"),-1) and t_base.limit_actv_tm  is not null ) t1 
+inner join  dm_uc.uc11_user_base_label  uc_base_label on t1.user_id=uc_base_label.user_id and uc_base_label.stat_dt='2019-05-09' and uc_base_label.is_white_list='0'
+left join   cust_label.u_k_cust_label_01 uk_label on t1.user_id=uk_label.user_id and  uk_label.stat_dt='2019-05-09' 
+left join 
+(select t4.id_no,t4.cont_amt,t4.maprice_rate from  
+    (SELECT id_no,maprice_rate,cont_amt ,row_number() over(partition by id_no  order by  cont_begin_dt  desc) as num 
+        FROM pdata.p02_loan_cont_info
+         WHERE stat_dt='2019-05-09' AND cont_sts='200' AND loan_typ='X201701268'and loan_prom is null) t4 
+         where t4.num=1 ) t5
+  on t1.id_no=t5.id_no
+left join   cust_label.label_cust_outdata   lpbc  on t1.id_no=lpbc.cust
+left join cust_label.uk_bp_label_01 as uk_bp on t1.user_id=uk_bp.user_id  )tt
+where  tt.draw_intrv>=-1  
+and    tt.limit_actv_tm>=date_add( from_unixtime(unix_timestamp(),"yyyy-MM-dd"),-1)
 
 
-from (
-  SELECT   
-distinct             
-T2.id_no as 'id_no',
-T1.PS_DUE_DT as 'PS_DUE_DT',
-T1.LOAN_NO as 'LOAN_NO'
-FROM cview.c99_lm_pm_shd_orig T1
-INNER JOIN (select *, ROW_NUMBER() over(PARTITION by id_no order by FST_PAYM_DT asc) num from SHDATA.SH002_LM_LOAN )T2
-ON T1.LOAN_NO = T2.LOAN_NO
-and T1.SETL_IND = 'N'
-and T2.LOAN_TYP='X201701268'
-AND T1.PS_PERD_NO > 0
-AND T1.PS_DUE_DT=to_date(date_add(from_unixtime(unix_timestamp(),"yyyy-MM-dd"),5))
-) t_main
 
-inner  join 
-(
-select 
-t1.id_no as id_no,
-sum(case when t2.loan_no is not null then 1 else 0 end) cnt
-from shdata.sh002_lm_loan t1 
-left join shdata.sh002_lm_pm_shd t2
-  on t1.loan_no = t2.loan_no
- and t2.ps_od_ind = '1'
- and (case when t2.last_setl_dt is not null and t2.setl_ind='Y' then datediff(cast(t2.last_setl_dt as string),cast(t2.ps_due_dt as string)) 
-      else datediff(to_date(date_add(from_unixtime(unix_timestamp(),"yyyy-MM-dd"),-1)),cast(t2.ps_due_dt as string)) end )>6
- group by t1.id_no
-)t_loan_over  on t_loan_over.id_no=t_main.id_no and t_loan_over.cnt=0
-
-left  join 
-(
-select 
-t1.id_no as id_no,
-case when sum(case when t2.loan_no is not null then 1 else 0 end) =0 then 0
-else 1 end as over_0_6
-from shdata.sh002_lm_loan t1 
-left join shdata.sh002_lm_pm_shd t2
-  on t1.loan_no = t2.loan_no
- and t2.ps_od_ind = '1'
- and (case when t2.last_setl_dt is not null and t2.setl_ind='Y' then datediff(cast(t2.last_setl_dt as string),cast(t2.ps_due_dt as string)) 
-      else datediff(to_date(date_add(from_unixtime(unix_timestamp(),"yyyy-MM-dd"),-1)),cast(t2.ps_due_dt as string)) end )<=6
- and (case when t2.last_setl_dt is not null and t2.setl_ind='Y' then datediff(cast(t2.last_setl_dt as string),cast(t2.ps_due_dt as string)) 
-      else datediff(to_date(date_add(from_unixtime(unix_timestamp(),"yyyy-MM-dd"),-1)),cast(t2.ps_due_dt as string)) end )>0    
- group by t1.id_no
-)t_loan_over_0_6  on t_loan_over_0_6.id_no=t_main.id_no 
-
-
-inner join  cust_label.label_cust_union as cust_union on cust_union.id_no=t_main.id_no
-left join  cust_label.label_cust_cmis as cust_cmis on cust_cmis.id_no=t_main.id_no 
-left join  cust_label.label_cust_outdata as cust_outdata on cust_outdata.cust=t_main.id_no
-left join  cust_label.label_cust_uk as cust_uk on cust_uk.id_no=t_main.id_no
-left join  cust_label.label_uk_activity as lable_uk_activity on lable_uk_activity.id_no=t_main.id_no
 """
 
-# 回归取数
+
 
 # 训练集取数sql
-REGRESSION_TRAIN_SQL = """
-select 
-cast (cust_union.age as int) as 'age',
-cast (cust_union.sex as string) as 'sex',
-cast (cust_union.city_level as string) as 'city_level',
-cast (cust_union.marry_sate as string) as 'marry_sate',
-cast (cust_union.phone_city_level as string) as 'phone_city_level',
-cast (cust_union.id_config as string) as 'id_config',
-cast (cust_outdata.INDTRY_SAL_CD as string)as 'INDTRY_SAL_CD',
-cast (cust_outdata.unicon as string) as 'unicon',
-cast (cust_outdata.unover_card_acct_count as int) as 'unover_card_acct_count',
-cast (cast (cust_outdata.unover_card_credit_limit as decimal(18,2)) as float) as 'unover_card_credit_limit',
-cast (cast (cust_outdata.unover_card_latest_6month_usedavg_amount as decimal(18,2)) as float) as 'unover_card_latest_6month_usedavg_amount',
-cast (cast (cust_outdata.card_used_highest_amount as decimal(18,2)) as float) as 'card_used_highest_amount',
-cast (cust_outdata.card_over_count as int) 'card_over_count',
-cast (cust_outdata.unover_loan_acct_count as int)  as 'unover_loan_acct_count',
-cast (cast (cust_outdata.unover_loan_credit_limit as decimal(18,2)) as float) as 'unover_loan_credit_limit',
-cast (cast (cust_outdata.unover_loan_balance as decimal(18,2)) as float) as 'unover_loan_balance',
-cast (cast (cust_outdata.unover_loan_latest_6month_usedavg_amount as decimal(18,2)) as float) as 'unover_loan_latest_6month_usedavg_amount',
-cast (cust_outdata.loan_PBC_GL_count as int) as 'loan_PBC_GL_count',
-cast (cast (cust_outdata.loan_CREDITLIMITAMOUNT_amount as decimal(18,2)) as float) as 'loan_CREDITLIMITAMOUNT_amount',
-cast (cust_outdata.house_loan_count+cust_outdata.housing_loan_count as int) as 'house_loan',
-cast (cust_outdata.loan_over_count as int) as 'loan_over_count',
-cast (case when cust_outdata.loan_class5state_sunshi>=0 or cust_outdata.loan_class5state_guanzhu>=0 or cust_outdata.loan_class5state_ciji>=0 or 
-                cust_outdata.loan_class5stat_keyi>=0
-                 then cust_outdata.loan_class5state_sunshi+cust_outdata.loan_class5state_guanzhu+cust_outdata.loan_class5state_ciji+cust_outdata.loan_class5stat_keyi 
-                      else 0 end as int)  as 'loan_class5state',
-cast (cust_outdata.td_SCORE as int) as 'td_SCORE',
-cast (cust_outdata.td_count as int) 'td_count',
-cast (cust_outdata.cnss_amount as int) as 'cnss_amount',
-cast (cust_outdata.p2p_amount as int) as 'p2p_amount',
-cast (cast (cust_cmis.total_apprv_amt as decimal(18,2)) as float) as 'total_apprv_amt',
-cast (cast (cust_cmis.loan_first_dn_amt as decimal(18,2)) as float) as 'loan_first_dn_amt',
-cast (cast (cust_cmis.loan_first_dn_amt/total_apprv_amt as decimal(18,2)) as float) as 'first_loan_rate',
-cast (cust_cmis.loan_rate as float) as 'loan_rate',
-cast (cust_cmis.first_pb_count as int) as 'first_pb_count',
-cast (cust_cmis.pre1_pary_count+cust_cmis.pre2_pary_count as int) as 'pre_pary_cont',
-cast (cust_cmis.normal_pary_count+cust_cmis.kuanxian_pary_count as int)as 'good_pary_cont',
-cast (cust_cmis.pary_15_count as int) as 'pary_15_count',
-cast (cust_cmis.pary_30_count as int) as 'pary_30_count',
-cast (cust_cmis.pary_60_count as int) as 'pary_60_count',
-cast (cust_cmis.pary_90_count as int) as 'pary_90_count',
-cast (cust_cmis.pary_180_count as int) as 'pary_180_count',
-cast (cust_cmis.over_180_pary_count as int) as 'over_180_pary_count',
-cast (lable_uk_activity.is_gain_prize as string) as 'is_gain_prize',
-cast (lable_uk_activity.seris_signin_time as int) as 'seris_signin_time',
-cast (lable_uk_activity.total_signin_daynum as int) as 'total_signin_daynum',
-cast (cust_uk.used_time  as string) as  'used_time',
-cast (cust_uk.launch_pre_day as float) as 'launch_pre_day',
-cast (cast(cust_uk.p2p_ap_count/cust_uk.application_count as decimal(18,2)) as float) as "application_count",
-cast (cast(cust_uk.finance_count/cust_uk.message_count as decimal(18,2)) as float) as "message_count",
-cast (t_last5_over.cnt as int) as 'last5_over_cnt',
-cast (t_fisrt_is_over.first_over_cnt as int ) as 'first_over_cnt',
-cast (cast (t_loan_over.cnt as decimal(18,2))/cast (cust_cmis.daoqi_tnr as decimal(18,2)) as float) as 'over_6_rate'
+REDRAWAPPL_CLASSIFY_TRAIN_SQL = """
 
-from (
-select B.id_no as id_no
-           from shdata.sh002_lm_loan B 
-           inner join
-           shdata.sh001_LPB_APPL_DN C 
-           on B.loan_no=C.loan_no
-           where B.LOAN_TYP = 'X201701268' group by B.id_no
-) t_main
-inner  join 
-(
-select 
-t1.id_no as id_no
-,sum(case when t2.loan_no is not null then 1 else 0 end) cnt
-from shdata.sh002_lm_loan t1 
-left join shdata.sh002_lm_pm_shd t2
-  on t1.loan_no = t2.loan_no
- and t2.ps_od_ind = '1'
- and (case when t2.last_setl_dt is not null and t2.setl_ind='Y' then datediff(cast(t2.last_setl_dt as string),cast(t2.ps_due_dt as string)) 
-      else datediff(to_date(date_add(from_unixtime(unix_timestamp(),"yyyy-MM-dd"),-1)),cast(t2.ps_due_dt as string)) end )>6
- group by t1.id_no
-)t_loan_over  on t_loan_over.id_no=t_main.id_no and t_loan_over.cnt>0
-
-left join 
-(
-select 
-t_loan_over.id_no as id_no
-,sum(case when t_loan_over.is_over=1 then 1 else 0 end) cnt
-from 
-(select t1.id_no,t2.loan_no,t2.ps_due_dt, row_number() over(partition by t1.id_no order by t2.ps_due_dt  desc) as num,
-case when  t2.ps_od_ind = '1'
-and (case when  t2.last_setl_dt is not null and t2.setl_ind='Y' then datediff(cast(t2.last_setl_dt as string),cast(t2.ps_due_dt as string)) 
-    else datediff(to_date(date_add(from_unixtime(unix_timestamp(),"yyyy-MM-dd"),-1)),cast(t2.ps_due_dt as string)) end )>6 then 1
-else 0
-end as 'is_over'
-from shdata.sh002_lm_loan t1 
-left join shdata.sh002_lm_pm_shd t2 
-on t1.loan_no = t2.loan_no  and datediff(to_date(date_add(from_unixtime(unix_timestamp(),"yyyy-MM-dd"),-1)),cast(t2.ps_due_dt as string)) >6)
-t_loan_over where t_loan_over.num<=5 group by t_loan_over.id_no
-)t_last5_over on t_last5_over.id_no=t_main.id_no
-
-left join 
-(select
-t_fisrt_over.id_no as id_no,
-sum(t_fisrt_over.first_over) as first_over_cnt
-from 
-(select 
-t1.id_no,
-case when t2.loan_no is null then 0
-else 1
-end as first_over
-from shdata.sh002_lm_loan t1
-left join 
-(select * from shdata.sh002_lm_pm_shd  where  ps_perd_no=1 and ps_od_ind='1')t2
-on t1.loan_no = t2.loan_no)t_fisrt_over group by t_fisrt_over.id_no) t_fisrt_is_over
-on t_fisrt_is_over.id_no=t_main.id_no
-
-
-
-inner join  cust_label.label_cust_union as cust_union on cust_union.id_no=t_main.id_no
-left join  cust_label.label_cust_cmis as cust_cmis on cust_cmis.id_no=t_main.id_no 
-left join  cust_label.label_cust_outdata as cust_outdata on cust_outdata.cust=t_main.id_no
-left join  cust_label.label_cust_uk as cust_uk on cust_uk.id_no=t_main.id_no
-left join  cust_label.label_uk_activity as lable_uk_activity on lable_uk_activity.id_no=t_main.id_no
-where cust_cmis.daoqi_tnr>=6
 
 """
 
 # 预测集取数sql
-REGRESSION_PREDICT_SQL = """
-
-select 
-cast (cust_union.id_no as string)  as 'id_no',
-cast (t_main.PS_DUE_DT as string)  as'PS_DUE_DT',
-cast (t_main.LOAN_NO as string) as 'LOAN_NO',
-cast (cust_union.age as int) as 'age',
-cast (cust_union.sex as string) as 'sex',
-cast (cust_union.city_level as string) as 'city_level',
-cast (cust_union.marry_sate as string) as 'marry_sate',
-cast (cust_union.phone_city_level as string) as 'phone_city_level',
-cast (cust_union.id_config as string) as 'id_config',
-cast (cust_outdata.INDTRY_SAL_CD as string)as 'INDTRY_SAL_CD',
-cast (cust_outdata.unicon as string) as 'unicon',
-cast (cust_outdata.unover_card_acct_count as int) as 'unover_card_acct_count',
-cast (cast (cust_outdata.unover_card_credit_limit as decimal(18,2)) as float) as 'unover_card_credit_limit',
-cast (cast (cust_outdata.unover_card_latest_6month_usedavg_amount as decimal(18,2)) as float) as 'unover_card_latest_6month_usedavg_amount',
-cast (cast (cust_outdata.card_used_highest_amount as decimal(18,2)) as float) as 'card_used_highest_amount',
-cast (cust_outdata.card_over_count as int) 'card_over_count',
-cast (cust_outdata.unover_loan_acct_count as int)  as 'unover_loan_acct_count',
-cast (cast (cust_outdata.unover_loan_credit_limit as decimal(18,2)) as float) as 'unover_loan_credit_limit',
-cast (cast (cust_outdata.unover_loan_balance as decimal(18,2)) as float) as 'unover_loan_balance',
-cast (cast (cust_outdata.unover_loan_latest_6month_usedavg_amount as decimal(18,2)) as float) as 'unover_loan_latest_6month_usedavg_amount',
-cast (cust_outdata.loan_PBC_GL_count as int) as 'loan_PBC_GL_count',
-cast (cast (cust_outdata.loan_CREDITLIMITAMOUNT_amount as decimal(18,2)) as float) as 'loan_CREDITLIMITAMOUNT_amount',
-cast (cust_outdata.house_loan_count+cust_outdata.housing_loan_count as int) as 'house_loan',
-cast (cust_outdata.loan_over_count as int) as 'loan_over_count',
-cast (case when cust_outdata.loan_class5state_sunshi>=0 or cust_outdata.loan_class5state_guanzhu>=0 or cust_outdata.loan_class5state_ciji>=0 or 
-                cust_outdata.loan_class5stat_keyi>=0
-                 then cust_outdata.loan_class5state_sunshi+cust_outdata.loan_class5state_guanzhu+cust_outdata.loan_class5state_ciji+cust_outdata.loan_class5stat_keyi 
-                      else 0 end as int)  as 'loan_class5state',
-cast (cust_outdata.td_SCORE as int) as 'td_SCORE',
-cast (cust_outdata.td_count as int) 'td_count',
-cast (cust_outdata.cnss_amount as int) as 'cnss_amount',
-cast (cust_outdata.p2p_amount as int) as 'p2p_amount',
-cast (cast (cust_cmis.total_apprv_amt as decimal(18,2)) as float) as 'total_apprv_amt',
-cast (cast (cust_cmis.loan_first_dn_amt as decimal(18,2)) as float) as 'loan_first_dn_amt',
-cast (cast (cust_cmis.loan_first_dn_amt/total_apprv_amt as decimal(18,2)) as float) as 'first_loan_rate',
-cast (cust_cmis.loan_rate as float) as 'loan_rate',
-cast (cust_cmis.first_pb_count as int) as 'first_pb_count',
-cast (cust_cmis.pre1_pary_count+cust_cmis.pre2_pary_count as int) as 'pre_pary_cont',
-cast (cust_cmis.normal_pary_count+cust_cmis.kuanxian_pary_count as int)as 'good_pary_cont',
-cast (cust_cmis.pary_15_count as int) as 'pary_15_count',
-cast (cust_cmis.pary_30_count as int) as 'pary_30_count',
-cast (cust_cmis.pary_60_count as int) as 'pary_60_count',
-cast (cust_cmis.pary_90_count as int) as 'pary_90_count',
-cast (cust_cmis.pary_180_count as int) as 'pary_180_count',
-cast (cust_cmis.over_180_pary_count as int) as 'over_180_pary_count',
-cast (lable_uk_activity.is_gain_prize as string) as 'is_gain_prize',
-cast (lable_uk_activity.seris_signin_time as int) as 'seris_signin_time',
-cast (lable_uk_activity.total_signin_daynum as int) as 'total_signin_daynum',
-cast (cust_uk.used_time  as string) as  'used_time',
-cast (cust_uk.launch_pre_day as float) as 'launch_pre_day',
-cast (cast(cust_uk.p2p_ap_count/cust_uk.application_count as decimal(18,2)) as float) as "application_count",
-cast (cast(cust_uk.finance_count/cust_uk.message_count as decimal(18,2)) as float) as "message_count",
-cast (t_last5_over.cnt as int) as 'last5_over_cnt',
-cast (t_fisrt_is_over.first_over_cnt as int ) as 'first_over_cnt'
-
-
-from (
-  SELECT   
-distinct              
-T2.id_no as 'id_no',
-T1.PS_DUE_DT as 'PS_DUE_DT',
-T1.LOAN_NO as 'LOAN_NO'
-FROM cview.c99_lm_pm_shd_orig T1
-INNER JOIN (select *, ROW_NUMBER() over(PARTITION by id_no order by FST_PAYM_DT asc) num from SHDATA.SH002_LM_LOAN )T2
-ON T1.LOAN_NO = T2.LOAN_NO
-and  T1.SETL_IND = 'N'
-and T2.LOAN_TYP='X201701268'
-AND T1.PS_PERD_NO > 0
-AND T1.PS_DUE_DT=to_date(date_add(from_unixtime(unix_timestamp(),"yyyy-MM-dd"),5))
-) t_main
-
-inner  join 
-(
-select 
-t1.id_no as id_no
-,sum(case when t2.loan_no is not null then 1 else 0 end) cnt
-from shdata.sh002_lm_loan t1 
-left join shdata.sh002_lm_pm_shd t2
-  on t1.loan_no = t2.loan_no
- and t2.ps_od_ind = '1'
- and (case when t2.last_setl_dt is not null and t2.setl_ind='Y' then datediff(cast(t2.last_setl_dt as string),cast(t2.ps_due_dt as string)) 
-      else datediff(to_date(date_add(from_unixtime(unix_timestamp(),"yyyy-MM-dd"),-1)),cast(t2.ps_due_dt as string)) end )>6
- group by t1.id_no
-)t_loan_over  on t_loan_over.id_no=t_main.id_no and t_loan_over.cnt>0
-
-left join 
-(
-select 
-t_loan_over.id_no as id_no
-,sum(case when t_loan_over.is_over=1 then 1 else 0 end) cnt
-from 
-(select t1.id_no,t2.loan_no,t2.ps_due_dt, row_number() over(partition by t1.id_no order by t2.ps_due_dt  desc) as num,
-case when  t2.ps_od_ind = '1'
-and (case when  t2.last_setl_dt is not null and t2.setl_ind='Y' then datediff(cast(t2.last_setl_dt as string),cast(t2.ps_due_dt as string)) 
-    else datediff(to_date(date_add(from_unixtime(unix_timestamp(),"yyyy-MM-dd"),-1)),cast(t2.ps_due_dt as string)) end )>6 then 1
-else 0
-end as 'is_over'
-from shdata.sh002_lm_loan t1 
-left join shdata.sh002_lm_pm_shd t2 
-on t1.loan_no = t2.loan_no  and datediff(to_date(date_add(from_unixtime(unix_timestamp(),"yyyy-MM-dd"),-1)),cast(t2.ps_due_dt as string))>6)
-t_loan_over where t_loan_over.num<=5 group by t_loan_over.id_no
-)t_last5_over on t_last5_over.id_no=t_main.id_no
-
-left join 
-(select
-t_fisrt_over.id_no as id_no,
-sum(t_fisrt_over.first_over) as first_over_cnt
-from 
-(select 
-t1.id_no,
-case when t2.loan_no is null then 0
-else 1
-end as first_over
-from shdata.sh002_lm_loan t1
-left join 
-(select * from shdata.sh002_lm_pm_shd  where  ps_perd_no=1 and ps_od_ind='1')t2
-on t1.loan_no = t2.loan_no)t_fisrt_over group by t_fisrt_over.id_no) t_fisrt_is_over
-on t_fisrt_is_over.id_no=t_main.id_no
-
-inner join  cust_label.label_cust_union as cust_union on cust_union.id_no=t_main.id_no
-left join  cust_label.label_cust_cmis as cust_cmis on cust_cmis.id_no=t_main.id_no 
-left join  cust_label.label_cust_outdata as cust_outdata on cust_outdata.cust=t_main.id_no
-left join  cust_label.label_cust_uk as cust_uk on cust_uk.id_no=t_main.id_no
-left join  cust_label.label_uk_activity as lable_uk_activity on lable_uk_activity.id_no=t_main.id_no
-
+REDRAWAPPL_CLASSIFY_PREDICT_SQL = """
 
 
 
@@ -462,34 +280,6 @@ left join  cust_label.label_uk_activity as lable_uk_activity on lable_uk_activit
 
 VALIDATE_SQL = """
 
-select 
-cast (t_main.id_no as string) as 'id_no',
-cast (t_main.ps_due_dt as string) as 'ps_due_dt',
-cast (t_main.loan_no as string) as 'loan_no',
-cast (t_main.is_over as string) as 'is_over',
-cast (t_main.this_over_days as string) as 'this_over_days' 
-from (
-select                
-t2.id_no as 'id_no',
-t1.loan_no,
-t1.ps_due_dt as 'ps_due_dt',
-case when (case when t1.last_setl_dt is not null and t1.setl_ind='Y' then datediff(cast(t1.last_setl_dt as string),cast(t1.ps_due_dt as string)) 
-     else datediff(to_date(date_add(from_unixtime(unix_timestamp(),"yyyy-MM-dd"),-1)),cast(t1.ps_due_dt as string)) end )>6 then 1
-else 0 
-end as 'is_over',
-case when t1.last_setl_dt is not null and t1.setl_ind='Y' then datediff(cast(t1.last_setl_dt as string),cast(t1.ps_due_dt as string)) 
-else datediff(to_date(date_add(from_unixtime(unix_timestamp(),"yyyy-MM-dd"),-1)),cast(t1.ps_due_dt as string)) end 
-as 'this_over_days'
-from shdata.sh002_lm_pm_shd t1
-inner join 
-(select * from shdata.sh002_lm_loan )t2
-on t1.loan_no = t2.loan_no
-and t2.loan_typ='X201701268'
-and t1.ps_perd_no > 0
-and t1.pp_er_ind = "N"
-and t1.ps_due_dt=to_date(date_add(from_unixtime(unix_timestamp(),"yyyy-MM-dd"),-8))
-) t_main
-
 """
 
 # *******************************
@@ -497,9 +287,9 @@ and t1.ps_due_dt=to_date(date_add(from_unixtime(unix_timestamp(),"yyyy-MM-dd"),-
 # 文件保存路径
 
 
-RESULT_SAVE_PATH = "/home/azkaban/model_persistence/result/"
+RESULT_SAVE_PATH = "C:\Users\Administrator\Desktop\liushi\model\\result\\"
 
-MODEL_PATH = "/home/azkaban/model_persistence/model_warehouse/"
+MODEL_PATH = "C:\Users\Administrator\Desktop\liushi\model\model_warehouse\\"
 
-VALIDATE_SAVE_PATH = "/home/azkaban/model_persistence/validation/"
+VALIDATE_SAVE_PATH = "/home/azkaban/custloss_model/validation/"
 
