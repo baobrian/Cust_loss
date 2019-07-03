@@ -63,7 +63,7 @@ def bin_data(df,pk,g):
     reslut = pd.merge(df,temp, on=pk)
     return reslut
 
-def main_train(stratege,train_df,type,machine='xg'):
+def main_train(stratege,train_df,type,machine='rf'):
     targets_dict={'DrawAppl':'is_appl','ReDrawAppl':'is_reappl'}
     print ('Step2 :  开始数据集预处理......')
     datapreprocess=dap.DataPreprocess()
@@ -79,9 +79,10 @@ def main_train(stratege,train_df,type,machine='xg'):
     print('  模型文件生成')
 
 def main_predict(predict_df,stratege,type,path=None):
-    pk_dict=data_config.PK_DICT
+    # pk_dict=data_config.PK_DICT
     # 预测集数据标识
-    pk = pk_dict[type]
+    # pk = pk_dict[type]
+    pk=['is_appl']
     predict_temp = predict_df[pk]
     predict_df = predict_df.drop(pk, axis=1)
     print ('Step2 :  开始数据集预处理......')
@@ -97,12 +98,21 @@ def main_predict(predict_df,stratege,type,path=None):
     predict_result=mto.model_deploy(model=model,data=predict_df,Stratege=stratege)
     print (' 预测结束')
     result = pd.concat([predict_temp, predict_result], axis=1)
-    result.sort_values(by='is_appl',inplace=True,ascending=False)
+    result.sort_values(by='is_appl_prob',inplace=True,ascending=False)
     # result['rank']=np.arange(1,len(result)+1)
     # result=bin_data(df=result,pk='rank',g=10)
-    mkdir_data()
-    result.to_csv('Custloss_' + type + '_result_' +getNowTime()+ '.csv', index=False,header=False)
+    # mkdir_data()
+    #result.to_csv('Custloss_' + type + '_result_' +getNowTime()+ '.csv', index=False,header=False)
+    os.chdir('C:\Users\Administrator\Desktop\liushi\data20190702\ks_exclude-1\\')
+    result.to_csv('xg.csv',index=False)
     print (' 预测文件已生成!')
+
+
+def func2(para):
+    if para==-1:
+        return 1.0/(1000+1)
+    else:
+        return 1.0/(para+1)
 
 if __name__ == '__main__':
 
@@ -133,7 +143,10 @@ if __name__ == '__main__':
         train_sql,predict_sql=getsql(param=model_type)
         #train_df=getdata(sql=train_sql)
         #train_df=pd.read_csv('C:\Users\Administrator\Desktop\liushi\\testdata\\train\\draw.csv')
-        train_df = pd.read_csv('C:\Users\Administrator\Desktop\liushi\\testdata\\train\\redraw.csv')
+        train_df = pd.read_csv('C:\Users\Administrator\Desktop\liushi\metric\data\\train_no_0-1.csv')
+        # print sum(train_df['draw_intrv']==-1)
+        # temp =train_df['draw_intrv'].apply(func=func2)
+        # train_df['draw_intrv']=train_df['draw_intrv'].apply(func=func2)
         main_train(stratege=stratege,train_df=train_df,type=model_type)
         sys.exit()
 
@@ -144,7 +157,7 @@ if __name__ == '__main__':
         train_sql, predict_sql = getsql(param=model_type)
         #predict_df=getdata(sql=predict_sql)
         #predict_df=pd.read_csv('C:\Users\Administrator\Desktop\liushi\\testdata\predict\\predict_draw.csv')
-        predict_df = pd.read_csv('C:\Users\Administrator\Desktop\liushi\\testdata\predict\\predict_redraw.csv')
+        predict_df = pd.read_csv('C:\Users\Administrator\Desktop\liushi\metric\data\\train_no_0-1.csv')
         main_predict(predict_df=predict_df, stratege=stratege,path=path,type=model_type)
         print 'Over'
         sys.exit()

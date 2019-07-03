@@ -41,11 +41,18 @@ def model_train(Train_data,Target,Stratege=None,machine=None):
             return xg
 
     if Stratege=='regression':
-        rfr=RandomForestRegressor(n_estimators=100,max_depth=10,criterion='mse')
-        rfr.fit(X_train, Y_train)
-        print 'RF R2 is %s' % rfr.score(X_test,Y_test)
-        print ('模型生成')
-        return rfr
+        if machine == 'rf':
+            rfr=RandomForestRegressor(n_estimators=100,max_depth=10,criterion='mse')
+            rfr.fit(X_train, Y_train)
+            print 'RF R2 is %s' % rfr.score(X_test,Y_test)
+            print ('模型生成')
+            return rfr
+        if machine == 'xg':
+            xgr=XGBRegressor(n_estimators=100,learning_rate=0.05)
+            xgr.fit(X_train, Y_train,early_stopping_rounds=5,eval_set=[(X_test,Y_test)],verbose=False)
+            print 'RF R2 is %s' % xgr.score(X_test,Y_test)
+            print ('模型生成')
+            return xgr
 
 
 
@@ -56,8 +63,8 @@ def model_deploy(model,data,Stratege):
         raise ValueError
     if Stratege=='classify':
         prob=model.predict_proba(data)
-        prob_df=pd.DataFrame.from_records(data=prob,index=data.index,columns=['not_appl','is_appl'])
-        return prob_df
+        prob_df=pd.DataFrame.from_records(data=prob,index=data.index,columns=['not_appl','is_appl_prob'])
+        return prob_df['is_appl_prob']
     if Stratege == 'regression':
         pre = model.predict(data)
     predict_df = pd.DataFrame(data=pre, index=data.index, columns=['predict_bad_prob'])

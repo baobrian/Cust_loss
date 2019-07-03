@@ -549,7 +549,9 @@ VALIDATE_SQL = """
 
 RESULT_SAVE_PATH = "/home/azkaban/custloss_model/result/"
 
-MODEL_PATH = "/home/azkaban/custloss_model/model_warehouse/"
+# MODEL_PATH = "/home/azkaban/custloss_model/model_warehouse/"
+
+MODEL_PATH = "C:\Users\Administrator\Desktop\liushi\model\model_warehouse\\"
 
 VALIDATE_SAVE_PATH = "/home/azkaban/custloss_model/validation/"
 
