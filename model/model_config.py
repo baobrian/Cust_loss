@@ -21,7 +21,7 @@ def dir_operation(path):
     os.chdir(path)
     filename='model'+getNowTime()
     if os.path.exists(path+filename):
-        print '模型文件夹已存在'
+        print ('模型文件夹已存在')
     else:
         os.mkdir(filename)
     os.chdir(path +filename +'/')
@@ -40,7 +40,7 @@ class ModelConfig:
         dir_operation(self.path)
         # 文件如果存在，重写直接替换原来数据文件
         if os.path.exists(self.dictname +'.file'):
-            print 'MAP文件已存在'
+            print ('MAP文件已存在')
         with open(self.dictname +'.file', "wb") as f:
             pickle.dump(mapdict, f)
         print ('MAP重新保存生成')     

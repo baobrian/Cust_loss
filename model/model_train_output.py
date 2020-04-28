@@ -3,6 +3,7 @@
 
 import time
 import pandas as pd
+import os
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import  roc_auc_score
 from sklearn.ensemble import RandomForestClassifier,RandomForestRegressor
@@ -17,6 +18,11 @@ def model_train(Train_data,Target,Stratege=None,machine=None):
     target = Train_data[Target]
     data = Train_data.drop(Target, axis=1)
     X_train, X_test, Y_train, Y_test = train_test_split(data, target, test_size=0.25)
+    os.chdir(r'C:\Users\Administrator\Desktop\liushi\data20190702\split_datarf\\')
+    X_train.to_csv('x_train.csv',index=False)
+    X_test.to_csv('x_test.csv',index=False)
+    Y_train.to_csv('y_train.csv',index=False)
+    Y_test.to_csv('y_test.csv',index=False)
     if not Stratege:
         print 'Error Model Train Stratege'
         raise ValueError

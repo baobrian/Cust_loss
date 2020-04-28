@@ -82,9 +82,9 @@ def main_predict(predict_df,stratege,type,path=None):
     # pk_dict=data_config.PK_DICT
     # 预测集数据标识
     # pk = pk_dict[type]
-    pk=['is_appl']
-    predict_temp = predict_df[pk]
-    predict_df = predict_df.drop(pk, axis=1)
+    # pk=['is_appl']
+    # predict_temp = predict_df[pk]
+    # predict_df = predict_df.drop(pk, axis=1)
     print ('Step2 :  开始数据集预处理......')
     datapreprocess=dap.DataPreprocess()
     predict_df=datapreprocess.num_replace_null(TRAIN=predict_df,replace_type='mean')
@@ -97,14 +97,14 @@ def main_predict(predict_df,stratege,type,path=None):
     model=model_config.model_read(path=path)
     predict_result=mto.model_deploy(model=model,data=predict_df,Stratege=stratege)
     print (' 预测结束')
-    result = pd.concat([predict_temp, predict_result], axis=1)
-    result.sort_values(by='is_appl_prob',inplace=True,ascending=False)
+    #result = pd.concat([predict_temp, predict_result], axis=1)
+    #predict_result.sort_values(by='is_appl_prob',inplace=True,ascending=False)
     # result['rank']=np.arange(1,len(result)+1)
     # result=bin_data(df=result,pk='rank',g=10)
     # mkdir_data()
     #result.to_csv('Custloss_' + type + '_result_' +getNowTime()+ '.csv', index=False,header=False)
-    os.chdir('C:\Users\Administrator\Desktop\liushi\data20190702\ks_exclude-1\\')
-    result.to_csv('xg.csv',index=False)
+    os.chdir('C:\Users\Administrator\Desktop\liushi\data20190702\\roc\\rf\\')
+    predict_result.to_csv('rf_x_test.csv',index=False)
     print (' 预测文件已生成!')
 
 
@@ -143,7 +143,7 @@ if __name__ == '__main__':
         train_sql,predict_sql=getsql(param=model_type)
         #train_df=getdata(sql=train_sql)
         #train_df=pd.read_csv('C:\Users\Administrator\Desktop\liushi\\testdata\\train\\draw.csv')
-        train_df = pd.read_csv('C:\Users\Administrator\Desktop\liushi\metric\data\\train_no_0-1.csv')
+        train_df = pd.read_csv('C:\Users\Administrator\Desktop\liushi\metric\data\\22.csv')
         # print sum(train_df['draw_intrv']==-1)
         # temp =train_df['draw_intrv'].apply(func=func2)
         # train_df['draw_intrv']=train_df['draw_intrv'].apply(func=func2)
@@ -157,7 +157,7 @@ if __name__ == '__main__':
         train_sql, predict_sql = getsql(param=model_type)
         #predict_df=getdata(sql=predict_sql)
         #predict_df=pd.read_csv('C:\Users\Administrator\Desktop\liushi\\testdata\predict\\predict_draw.csv')
-        predict_df = pd.read_csv('C:\Users\Administrator\Desktop\liushi\metric\data\\train_no_0-1.csv')
+        predict_df = pd.read_csv('C:\Users\Administrator\Desktop\liushi\data20190702\split_datarf\\x_test.csv')
         main_predict(predict_df=predict_df, stratege=stratege,path=path,type=model_type)
         print 'Over'
         sys.exit()
